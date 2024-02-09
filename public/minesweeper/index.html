@@ -1,0 +1,407 @@
+<html>
+
+<head>
+  <title>Minesweeper | Kris's website</title>
+  <!-- <link rel="icon" href="favicon.ico"> -->
+  <meta charset="UTF-8">
+  <meta name="description" content="Minesweeper No AD!">
+  <meta name="keywords" content="Play Minesweeper!">
+  <meta name="author" content="Krisanapon Meksamoot">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+  <div class="actionbar">
+    <a href="/">Kris's website</a> | Minesweeper
+    <div id="action-field">
+    </div>
+  </div>
+  <div id="game-container">
+  </div>
+  <script>
+    const flag_img = "url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAABHNCSVQICAgIfAhkiAAAAEFJREFUKJGtj0kOACAIxIrx/18ezxpkMfZGmCEFfiCQQN5unsHs2OiEt4KBVQou0Q9JL1Cq4nmfl+02ZM72pNRmAVxuDwSTDbmOAAAAAElFTkSuQmCC)";
+    const bomb_img = "url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA8AAAAPCAYAAAA71pVKAAAABHNCSVQICAgIfAhkiAAAAI9JREFUKJGdksEOwzAIQ3FUTT3ssEr7iP3/5+3ydoGupSHKZimKSLBNCGYFgHt1VwLQMfxZoCIDT9/bycQDgJeT8rqILclJkqpSAVbpa6ic4Fmh1BPZD1vhMoVQ+aerCmcBt1kSsB2dAzMVXN8MrB2xkngim9nbnSsBdSuLaUmjad3kxBlhSC7/GWg27sHjA/MARmXGjGTCAAAAAElFTkSuQmCC)";
+    const gameContainer = document.getElementById("game-container");
+    const query = parseURL();
+    var table;
+    var valueMap;
+    var setting = {
+      width: 30,
+      height: 16,
+      bomb: 99,
+      spawnRadius: 2
+    };
+    var setupItem = {
+      actionField: document.getElementById("action-field"),
+      width: document.createElement("input"),
+      height: document.createElement("input"),
+      bomb: document.createElement("input"),
+      spawnRadius: document.createElement("input"),
+      resetButton: document.createElement("button")
+    };
+    var gameStatus = {
+      bombFound: 0,
+      death: 0,
+      timer: 0,
+      opened: 0,
+      statusText: document.createTextNode(""),
+      timerInterval: -1
+    };
+
+    const numberColors = ["", "blue", "green", "red", "purple", "maroon", "turquoise", "black", "gray"];
+
+    function parseURL() {
+      let vars = window.location.search.substring(1).split('&');
+      let output = {};
+      for (var i = 0; i < vars.length; i++) {
+        let pair = vars[i].split('=');
+        output[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+      }
+      return output;
+    }
+    function generateBombMap(width, height, bomb, spawn = {x: -1, y: -1, width: 0, height: 0}) {
+      let bombLeft = bomb;
+      let areaLeft = width * height - spawn.width * spawn.height;
+      let output = [];
+      for (let y = 0; y < height; y++) {
+        let row = [];
+        for (let x = 0; x < width; x++) {
+          if (isInRectangle(spawn, x, y)) {
+            row.push(false);
+            continue;
+          }
+          if ((Math.random() * areaLeft) < bombLeft) {
+            bombLeft--;
+            row.push(true);
+          } else {
+            row.push(false);
+          }
+          areaLeft--;
+        }
+        output.push(row);
+      }
+      setting.bomb -= bombLeft;
+      return output;
+    }
+    function generateValueMap(width, height, bombMap) {
+      let output = [];
+      for (let y = 0; y < height; y++) {
+        let row = [];
+        for (let x = 0; x < width; x++) {
+          if (bombMap[y][x]) {
+            row.push(9);
+            continue;
+          }
+          let value = 0;
+          for (let iy = y - 1; iy < y + 2; iy++) {
+            for (let ix = x - 1; ix < x + 2; ix++) {
+              value += get(bombMap, ix, iy) ? 1 : 0;
+            }
+          }
+          row.push(value);
+        }
+        output.push(row);
+      }
+      return output;
+    }
+    function get(table, x, y) {
+      if (0 > y || y >= table.length) {
+        return false;
+      }
+      if (0 > x || x >= table[y].length) {
+        return false;
+      }
+      return table[y][x];
+    }
+    function isInRectangle(rectangle, x, y) {
+      return x >= rectangle.x && x < rectangle.width + rectangle.x && y >= rectangle.y && y < rectangle.height + rectangle.y;
+    }
+    function generateTable(width, height) {
+      let tbody = document.createElement("tbody");
+      for (let y = 0; y < height; y++) {
+        let row = document.createElement("tr");
+        for (let x = 0; x < width; x++) {
+          let cell = document.createElement("td");
+          cell.onclick = () => {start(x, y);};
+          cell.style.backgroundColor = "gray";
+          row.appendChild(cell);
+        }
+        tbody.appendChild(row);
+      }
+      return tbody;
+    }
+    function setTable(tbody, width, height, valueMap) {
+      for (let y = 0; y < height; y++) {
+        let row = tbody.children[y];
+        for (let x = 0; x < width; x++) {
+          let cell = row.children[x];
+          let value = valueMap[y][x];
+          cell.onclick = (event) => {//spot
+            event.preventDefault();
+            let value = valueMap[y][x];
+            if ((value & 0x40) != 0)
+              return;
+            if ((value & 0x80) != 0) {
+              if (countAround(tbody, x, y) == (value & 0x0F)) {
+                clearZeroFrom(tbody, x, y);
+              }
+              return;
+            }
+            cell.style.backgroundColor = "";
+            if (value == 9) {
+              cell.style.backgroundImage = "url(\"bomb.png\")";
+              gameStatus.bombFound++;
+              gameStatus.death++;
+              updateStatus();
+            } else if (value == 0) {
+              clearZeroFrom(tbody, x, y);
+            } else {
+              cell.innerText = value;
+              cell.style.color = numberColors[value];
+            }
+            valueMap[y][x] |= 0x80;
+            gameStatus.opened++;
+          };
+          cell.oncontextmenu = (event) => {//flag
+            event.preventDefault();
+            let value = valueMap[y][x];
+            if ((value & 0x80) != 0)
+              return;
+            if ((value & 0x40) == 0) {
+              cell.style.backgroundImage = flag_img;
+              cell.style.backgroundColor = "lightgray";
+              gameStatus.bombFound++;
+            } else {
+              cell.style.backgroundImage = "";
+              cell.style.backgroundColor = "gray";
+              gameStatus.bombFound--;
+            }
+            updateStatus();
+            valueMap[y][x] ^= 0x40;
+          };
+        }
+      }
+    }
+    function clearZero(tbody, x, y) {
+      if (!isInRectangle({x: 0, y: 0, width: setting.width, height: setting.height}, x, y))
+        return;
+      let value = valueMap[y][x];
+      if ((value & 0x80) != 0)
+        return;
+      if ((value & 0x40) != 0)
+        return;
+      let cell = tbody.children[y].children[x];
+      cell.style.backgroundColor = "";
+      if (value == 9) {
+        cell.style.backgroundImage = bomb_img;
+        gameStatus.bombFound++;
+        gameStatus.death++;
+        updateStatus();
+      } else if (value == 0) {
+        gameStatus.opened++;
+      } else {
+        cell.innerText = value;
+        cell.style.color = numberColors[value];
+        gameStatus.opened++;
+      }
+      valueMap[y][x] |= 0x80;
+      if (value == 0)
+        clearZeroFrom(tbody, x, y);
+    }
+    function clearZeroFrom(tbody, x, y) {
+      for (let iy = y - 1; iy < y + 2; iy++) {
+        for (let ix = x - 1; ix < x + 2; ix++) {
+          clearZero(tbody, ix, iy);
+        }
+      }
+    }
+    function countAround(tbody, x, y) {
+      let out = 0;
+      for (let iy = y - 1; iy < y + 2; iy++) {
+        for (let ix = x - 1; ix < x + 2; ix++) {
+          let val = get(valueMap, ix, iy);
+          if (val == false)
+            continue;
+          out += ((val & 0x40) != 0) ? 1 : 0;
+          if (val == 0x89)
+            out++;
+        }
+      }
+      return out;
+    }
+    function clamp(n, min, max) {
+      return Math.min(Math.max(n, min), max);
+    }
+    function init() {
+      flagMap = [];
+      div = document.createElement("div");
+      table = document.createElement("table");
+      div.appendChild(table);
+      gameContainer.replaceChildren();
+      gameContainer.appendChild(div);
+      table.appendChild(generateTable(setting.width, setting.height));
+    }
+    function start(x, y, width = setting.width, height = setting.height, bomb = setting.bomb, spawnRadius = setting.spawnRadius) {
+      gameStatus.bombFound = 0;
+      gameStatus.death = 0;
+      valueMap = generateValueMap(width, height, generateBombMap(width, height, bomb, rectClamp(x - spawnRadius, y - spawnRadius, spawnRadius * 2 + 1, spawnRadius * 2 + 1)));
+      gameStatus.timer = 0;
+      gameStatus.opened = 0;
+      setupstaticActionField();
+      setTable(table.firstChild, width, height, valueMap);
+      table.firstChild.children[y].children[x].click();
+      gameStatus.timerInterval = setInterval(() => {
+        gameStatus.timer++;
+        updateStatus();
+      }, 1000);
+    }
+    function rectClamp(x, y, width, height) {
+      let out = {};
+      out.x = clamp(x, 0, setting.width);
+      out.y = clamp(y, 0, setting.height);
+      out.width = clamp(x + width, 0, setting.width) - out.x;
+      out.height = clamp(y + height, 0, setting.height) - out.y
+      return out;
+    }
+    function initSetupItem() {
+      setupItem.width.type = "number";
+      setupItem.width.min = 5;
+      setupItem.width.max = 1000;
+      setupItem.width.size = 2;
+      setupItem.width.value = setting.width;
+      setupItem.width.onchange = () => {
+        setting.width = clamp(setupItem.width.valueAsNumber, 5, 1000);
+        setupItem.width.value = setting.width;
+        init();
+      };
+      setupItem.height.type = "number";
+      setupItem.height.min = 5;
+      setupItem.height.max = 1000;
+      setupItem.height.size = 2;
+      setupItem.height.value = setting.height;
+      setupItem.height.onchange = () => {
+        setting.height = clamp(setupItem.height.valueAsNumber, 5, 1000);
+        setupItem.height.value = setting.height;
+        init();
+      };
+      setupItem.bomb.type = "number";
+      setupItem.bomb.min = 5;
+      setupItem.bomb.max = 999999;
+      setupItem.bomb.size = 3;
+      setupItem.bomb.value = setting.bomb;
+      setupItem.bomb.onchange = () => {
+        setting.bomb = clamp(setupItem.bomb.valueAsNumber, 5, 999999);
+        setupItem.bomb.value = setting.bomb;
+      };
+      setupItem.spawnRadius.type = "number";
+      setupItem.spawnRadius.min = 0;
+      setupItem.spawnRadius.max = 10;
+      setupItem.spawnRadius.size = 1;
+      setupItem.spawnRadius.value = setting.spawnRadius;
+      setupItem.spawnRadius.onchange = () => {
+        setting.spawnRadius = clamp(setupItem.spawnRadius.valueAsNumber, 0, 10);
+        setupItem.spawnRadius.value = setting.spawnRadius;
+      };
+      setupItem.resetButton.innerText = "Reset";
+      setupItem.resetButton.onclick = () => {
+        initSetupItem();
+        init();
+        setupActionField();
+        clearInterval(gameStatus.timerInterval);
+      };
+    }
+    function setupActionField() {
+      setupItem.actionField.replaceChildren();
+      setupItem.actionField.appendChild(document.createTextNode("Width:"));
+      setupItem.actionField.appendChild(setupItem.width);
+      setupItem.actionField.appendChild(document.createTextNode("Height:"));
+      setupItem.actionField.appendChild(setupItem.height);
+      setupItem.actionField.appendChild(document.createTextNode("Bomb:"));
+      setupItem.actionField.appendChild(setupItem.bomb);
+      setupItem.actionField.appendChild(document.createTextNode("SpawnRadius:"));
+      setupItem.actionField.appendChild(setupItem.spawnRadius);
+    }
+    function setupstaticActionField() {
+      setupItem.actionField.replaceChildren();
+      updateStatus();
+      setupItem.actionField.appendChild(gameStatus.statusText);
+      setupItem.actionField.appendChild(setupItem.resetButton);
+    }
+    function updateStatus() {
+      if (gameStatus.opened+gameStatus.bombFound==setting.width*setting.height) {
+        clearInterval(gameStatus.timerInterval);
+        gameStatus.statusText.textContent = "Bomb: " + gameStatus.bombFound + "/" + setting.bomb + " Death: " + gameStatus.death + " Timer: " + gameStatus.timer + " finished";
+        return;
+      }
+      gameStatus.statusText.textContent = "Bomb: " + gameStatus.bombFound + "/" + setting.bomb + " Death: " + gameStatus.death + " Timer: " + gameStatus.timer + " ";
+    }
+    initSetupItem();
+    init();
+    setupActionField();
+  </script>
+  <style>
+    :root {
+      --cell-size: 20px;
+    }
+
+    div#game-container>div>table>tbody>tr>td {
+      border: 1px black solid;
+      text-align: center;
+      width: var(--cell-size);
+      max-width: var(--cell-size);
+      min-width: var(--cell-size);
+      background-repeat: no-repeat;
+      background-size: 100% 100%;
+      image-rendering: pixelated;
+    }
+
+    div#game-container>div>table>tbody>tr {
+      font-size: 17px;
+      font-weight: bold;
+      height: calc(var(--cell-size) + 4px);
+      max-height: calc(var(--cell-size) + 4px);
+      min-height: calc(var(--cell-size) + 4px);
+      background-repeat: no-repeat;
+      background-size: 100% 100%;
+      user-select: none;
+    }
+
+    div#game-container>div>table {
+      table-layout: fixed;
+      border-spacing: 0px;
+    }
+
+    div#game-container>div {
+      display: inline-block;
+    }
+
+    div#game-container {
+      overflow: auto;
+      width: 100%;
+      height: calc(100% - 50px);
+      text-align: center;
+    }
+
+    div.actionbar {
+      width: calc(100% - 10px);
+      height: 40px;
+      font-size: 130%;
+      padding: 5px;
+    }
+
+    div#action-field {
+      display: inline-block;
+    }
+
+    div.actionbar>a {
+      text-decoration: none;
+      color: black;
+    }
+
+    body {
+      margin: 0px;
+    }
+  </style>
+</body>
+
+</html>
