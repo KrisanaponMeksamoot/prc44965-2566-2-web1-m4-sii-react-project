@@ -116,74 +116,90 @@
     function isInRectangle(rectangle, x, y) {
       return x >= rectangle.x && x < rectangle.width + rectangle.x && y >= rectangle.y && y < rectangle.height + rectangle.y;
     }
+    function cellStart(event) {
+      const cell = event.target;
+      const x = cell.dataset.x;
+      const y = cell.dataset.y;
+      start(x, y);
+    }
     function generateTable(width, height) {
       let tbody = document.createElement("tbody");
       for (let y = 0; y < height; y++) {
         let row = document.createElement("tr");
         for (let x = 0; x < width; x++) {
           let cell = document.createElement("td");
-          cell.onclick = () => {start(x, y);};
+          cell.onclick = cellStart;
           cell.style.backgroundColor = "gray";
+          cell.dataset.x = x;
+          cell.dataset.y = y;
           row.appendChild(cell);
         }
         tbody.appendChild(row);
       }
       return tbody;
     }
+    function spot(event) {
+      const cell = event.target;
+      const x = parseInt(cell.dataset.x);
+      const y = parseInt(cell.dataset.y);
+      event.preventDefault();
+      let value = valueMap[y][x];
+      if ((value & 0x40) != 0)
+        return;
+      if ((value & 0x80) != 0) {
+        if (countAround(x, y) == (value & 0x0F)) {
+          clearZeroFrom(x, y);
+        }
+        return;
+      }
+      cell.style.backgroundColor = "";
+      if (value == 9) {
+        cell.style.backgroundImage = bomb_img;
+        gameStatus.bombFound++;
+        gameStatus.death++;
+        updateStatus();
+      } else if (value == 0) {
+        clearZeroFrom(x, y);
+        return;
+      } else {
+        cell.innerText = value;
+        cell.style.color = numberColors[value];
+      }
+      valueMap[y][x] |= 0x80;
+      gameStatus.opened++;
+    }
+    function flag(event) {
+      const cell = event.target;
+      const x = parseInt(cell.dataset.x);
+      const y = parseInt(cell.dataset.y);
+      event.preventDefault();
+      let value = valueMap[y][x];
+      if ((value & 0x80) != 0)
+        return;
+      if ((value & 0x40) == 0) {
+        cell.style.backgroundImage = flag_img;
+        cell.style.backgroundColor = "lightgray";
+        gameStatus.bombFound++;
+      } else {
+        cell.style.backgroundImage = "";
+        cell.style.backgroundColor = "gray";
+        gameStatus.bombFound--;
+      }
+      updateStatus();
+      valueMap[y][x] ^= 0x40;
+    }
     function setTable(tbody, width, height, valueMap) {
       for (let y = 0; y < height; y++) {
         let row = tbody.children[y];
         for (let x = 0; x < width; x++) {
           let cell = row.children[x];
-          let value = valueMap[y][x];
-          cell.onclick = (event) => {//spot
-            event.preventDefault();
-            let value = valueMap[y][x];
-            if ((value & 0x40) != 0)
-              return;
-            if ((value & 0x80) != 0) {
-              if (countAround(tbody, x, y) == (value & 0x0F)) {
-                clearZeroFrom(tbody, x, y);
-              }
-              return;
-            }
-            cell.style.backgroundColor = "";
-            if (value == 9) {
-              cell.style.backgroundImage = bomb_img;
-              gameStatus.bombFound++;
-              gameStatus.death++;
-              updateStatus();
-            } else if (value == 0) {
-              clearZeroFrom(tbody, x, y);
-              return;
-            } else {
-              cell.innerText = value;
-              cell.style.color = numberColors[value];
-            }
-            valueMap[y][x] |= 0x80;
-            gameStatus.opened++;
-          };
-          cell.oncontextmenu = (event) => {//flag
-            event.preventDefault();
-            let value = valueMap[y][x];
-            if ((value & 0x80) != 0)
-              return;
-            if ((value & 0x40) == 0) {
-              cell.style.backgroundImage = flag_img;
-              cell.style.backgroundColor = "lightgray";
-              gameStatus.bombFound++;
-            } else {
-              cell.style.backgroundImage = "";
-              cell.style.backgroundColor = "gray";
-              gameStatus.bombFound--;
-            }
-            updateStatus();
-            valueMap[y][x] ^= 0x40;
-          };
+          cell.onclick = spot;
+          cell.oncontextmenu = flag;
         }
       }
     }
-    function clearZero(tbody, x, y) {
+    function clearZero(x, y) {
+      let tbody = table.tBodies[0];
       if (!isInRectangle({x: 0, y: 0, width: setting.width, height: setting.height}, x, y))
         return;
       let value = valueMap[y][x];
@@ -207,24 +223,23 @@
       }
       valueMap[y][x] |= 0x80;
       if (value == 0)
-        clearZeroFrom(tbody, x, y);
+        clearZeroFrom(x, y);
     }
-    function clearZeroFrom(tbody, x, y) {
-      for (let iy = y - 1; iy < y + 2; iy++) {
-        for (let ix = x - 1; ix < x + 2; ix++) {
-          clearZero(tbody, ix, iy);
+    function clearZeroFrom(x, y) {
+      for (let iy = y - 1; iy <= y + 1; iy++) {
+        for (let ix = x - 1; ix <= x + 1; ix++) {
+          clearZero(ix, iy);
         }
       }
     }
-    function countAround(tbody, x, y) {
+    function countAround(x, y) {
       let out = 0;
-      for (let iy = y - 1; iy < y + 2; iy++) {
-        for (let ix = x - 1; ix < x + 2; ix++) {
+      for (let iy = y - 1; iy <= y + 1; iy++) {
+        for (let ix = x - 1; ix <= x + 1; ix++) {
           let val = get(valueMap, ix, iy);
           if (val == false)
             continue;
-          out += ((val & 0x40) != 0) ? 1 : 0;
-          if (val == 0x89)
+          if (val == 0x89 || (val & 0x40) != 0)
             out++;
         }
       }
@@ -249,8 +264,8 @@
       gameStatus.timer = 0;
       gameStatus.opened = 0;
       setupstaticActionField();
-      setTable(table.firstChild, width, height, valueMap);
-      table.firstChild.children[y].children[x].click();
+      setTable(table.tBodies[0], width, height, valueMap);
+      table.tBodies[0].children[y].children[x].click();
       gameStatus.timerInterval = setInterval(() => {
         gameStatus.timer++;
         updateStatus();
@@ -331,10 +346,10 @@
     function updateStatus() {
       if (gameStatus.opened==setting.width*setting.height-setting.bomb) {
         clearInterval(gameStatus.timerInterval);
-        gameStatus.statusText.textContent = "Bomb: " + gameStatus.bombFound + "/" + setting.bomb + " Death: " + gameStatus.death + " Timer: " + gameStatus.timer + " finished";
+        gameStatus.statusText.textContent = `Bomb: ${gameStatus.bombFound}/${setting.bomb} Death: ${gameStatus.death} Timer: ${gameStatus.timer} finished`;
         return;
       }
-      gameStatus.statusText.textContent = "Bomb: " + gameStatus.bombFound + "/" + setting.bomb + " Death: " + gameStatus.death + " Timer: " + gameStatus.timer + " ";
+      gameStatus.statusText.textContent = `Bomb: ${gameStatus.bombFound}/${setting.bomb} Death: ${gameStatus.death} Timer: ${gameStatus.timer} `;
     }
     initSetupItem();
     init();
