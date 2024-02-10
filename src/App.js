@@ -11,7 +11,7 @@ function App() {
         </p>
         <a
           className="App-link"
-          href="/minesweeper/"
+          href="/minesweeper.html"
           rel="noopener noreferrer"
         >
           Play minesweeper
