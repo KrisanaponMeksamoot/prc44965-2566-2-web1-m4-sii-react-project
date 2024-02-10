@@ -155,6 +155,7 @@
               updateStatus();
             } else if (value == 0) {
               clearZeroFrom(tbody, x, y);
+              return;
             } else {
               cell.innerText = value;
               cell.style.color = numberColors[value];
@@ -328,7 +329,7 @@
       setupItem.actionField.appendChild(setupItem.resetButton);
     }
     function updateStatus() {
-      if (gameStatus.opened+gameStatus.bombFound==setting.width*setting.height) {
+      if (gameStatus.opened==setting.width*setting.height-setting.bomb) {
         clearInterval(gameStatus.timerInterval);
         gameStatus.statusText.textContent = "Bomb: " + gameStatus.bombFound + "/" + setting.bomb + " Death: " + gameStatus.death + " Timer: " + gameStatus.timer + " finished";
         return;
@@ -341,7 +342,7 @@
   </script>
   <style>
     :root {
-      --cell-size: 20px;
+      --cell-size: 30px;
     }
 
     div#game-container>div>table>tbody>tr>td {
@@ -356,7 +357,7 @@
     }
 
     div#game-container>div>table>tbody>tr {
-      font-size: 17px;
+      font-size: 25px;
       font-weight: bold;
       height: calc(var(--cell-size) + 4px);
       max-height: calc(var(--cell-size) + 4px);
@@ -377,20 +378,22 @@
 
     div#game-container {
       overflow: auto;
-      width: 100%;
-      height: calc(100% - 50px);
       text-align: center;
+      grid-area: 1 0 2 1;
     }
 
     div.actionbar {
-      width: calc(100% - 10px);
-      height: 40px;
-      font-size: 130%;
+      font-size: 30px;
       padding: 5px;
+      grid-area: 0 0 1 1;
     }
 
     div#action-field {
       display: inline-block;
+    }
+
+    div#action-field > input, div#action-field > button {
+      font-size: 24px;
     }
 
     div.actionbar>a {
