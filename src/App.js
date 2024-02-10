@@ -12,7 +12,6 @@ function App() {
         <a
           className="App-link"
           href="/minesweeper/"
-          target="_blank"
           rel="noopener noreferrer"
         >
           Play minesweeper
