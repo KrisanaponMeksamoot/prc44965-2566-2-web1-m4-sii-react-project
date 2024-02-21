@@ -16,7 +16,7 @@ function ShowHelp({showHelp, setShowHelp}) {
       </ol>
       <h3>Keybinds</h3>
       <ul style={{textAlign: "left"}}>
-        <li>LMB(left click) <span>open square or open surrounding square</span></li>
+        <li>LMB(left click) <span>open square or open surrounding squares</span></li>
         <li>RMB(right click) <span>flag</span></li>
       </ul>
       <button onClick={()=>setShowHelp(false)} style={{fontSize: "inherit"}}>OK</button>
@@ -31,7 +31,7 @@ function App() {
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
         <p>
-          This website has nothing except game.
+          This website has nothing except a game.
         </p>
         <a
           className="App-link"
