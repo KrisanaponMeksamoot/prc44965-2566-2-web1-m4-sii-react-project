@@ -37,7 +37,8 @@
       height: document.createElement("input"),
       bomb: document.createElement("input"),
       spawnRadius: document.createElement("input"),
-      resetButton: document.createElement("button")
+      resetButton: document.createElement("button"),
+      popupMessage: document.createElement("div")
     };
     var gameStatus = {
       bombFound: 0,
@@ -213,6 +214,7 @@
         cell.style.backgroundImage = bomb_img;
         gameStatus.bombFound++;
         gameStatus.death++;
+        gameStatus.opened++;
         updateStatus();
       } else if (value == 0) {
         gameStatus.opened++;
@@ -325,28 +327,47 @@
         setupActionField();
         clearInterval(gameStatus.timerInterval);
       };
+      setupItem.popupMessage.style.display = "none";
+      setupItem.popupMessage.className = "popup-message";
+      document.body.appendChild(setupItem.popupMessage);
     }
     function setupActionField() {
-      setupItem.actionField.replaceChildren();
-      setupItem.actionField.appendChild(document.createTextNode("Width:"));
-      setupItem.actionField.appendChild(setupItem.width);
-      setupItem.actionField.appendChild(document.createTextNode("Height:"));
-      setupItem.actionField.appendChild(setupItem.height);
-      setupItem.actionField.appendChild(document.createTextNode("Bomb:"));
-      setupItem.actionField.appendChild(setupItem.bomb);
-      setupItem.actionField.appendChild(document.createTextNode("SpawnRadius:"));
-      setupItem.actionField.appendChild(setupItem.spawnRadius);
+      setupItem.actionField.replaceChildren(
+        document.createTextNode("Width:"),
+        setupItem.width,
+        document.createTextNode("Height:"),
+        setupItem.height,
+        document.createTextNode("Bomb:"),
+        setupItem.bomb,
+        document.createTextNode("SpawnRadius:"),
+        setupItem.spawnRadius);
     }
     function setupstaticActionField() {
-      setupItem.actionField.replaceChildren();
       updateStatus();
-      setupItem.actionField.appendChild(gameStatus.statusText);
-      setupItem.actionField.appendChild(setupItem.resetButton);
+      setupItem.actionField.replaceChildren(gameStatus.statusText, setupItem.resetButton);
     }
     function updateStatus() {
-      if (gameStatus.opened==setting.width*setting.height-setting.bomb) {
+      if (gameStatus.opened-gameStatus.death==setting.width*setting.height-setting.bomb) {
         clearInterval(gameStatus.timerInterval);
         gameStatus.statusText.textContent = `Bomb: ${gameStatus.bombFound}/${setting.bomb} Death: ${gameStatus.death} Timer: ${gameStatus.timer} finished`;
+        setupItem.popupMessage.replaceChildren();
+        let h2 = document.createElement("h2");
+        h2.innerText = "You win!";
+        setupItem.popupMessage.appendChild(h2);
+        if (gameStatus.death == 0) {
+          setupItem.popupMessage.appendChild(document.createTextNode(`Flawless finish with time: ${gameStatus.timer}`));
+        } else {
+          setupItem.popupMessage.appendChild(document.createTextNode(`Time: ${gameStatus.timer}`));
+          setupItem.popupMessage.appendChild(document.createElement("br"));
+          setupItem.popupMessage.appendChild(document.createTextNode(`But you died ${gameStatus.death} time${gameStatus.death==1?"":"s"}.`));
+        }
+        let cbtn = document.createElement("button");
+        cbtn.innerText = "Close";
+        cbtn.style.display = "block";
+        cbtn.style.margin = "auto";
+        cbtn.onclick = ()=>setupItem.popupMessage.style.display = "none";
+        setupItem.popupMessage.appendChild(cbtn);
+        setupItem.popupMessage.style.display = "block";
         return;
       }
       gameStatus.statusText.textContent = `Bomb: ${gameStatus.bombFound}/${setting.bomb} Death: ${gameStatus.death} Timer: ${gameStatus.timer} `;
@@ -405,15 +426,27 @@
 
     div#action-field {
       display: inline-block;
-    }
-
-    div#action-field > input, div#action-field > button {
       font-size: 24px;
     }
 
     div.actionbar>a {
       text-decoration: none;
       color: black;
+    }
+
+    div.popup-message {
+      position: absolute;
+      text-align: center;
+      font-size: 24px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 2px black solid;
+      background-color: white;
+    }
+
+    button, input {
+      font-size: inherit;
     }
 
     body {
